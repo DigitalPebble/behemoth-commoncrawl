@@ -1,11 +1,10 @@
 package com.digitalpebble.behemoth.commoncrawl;
 
-import com.digitalpebble.behemoth.BehemothDocument;
+import java.io.IOException;
+
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobConf;
@@ -13,7 +12,6 @@ import org.apache.hadoop.mapred.MapReduceBase;
 import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reporter;
-
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
@@ -21,88 +19,82 @@ import org.commoncrawl.hadoop.io.ARCInputFormat;
 import org.commoncrawl.hadoop.io.JetS3tARCSource;
 import org.commoncrawl.protocol.shared.ArcFileItem;
 
-import java.io.IOException;
+import com.digitalpebble.behemoth.BehemothDocument;
 
 /**
-* Converts CommonCrawl to BehemothDocument
-*
-**/
+ * Converts CommonCrawl data from S3 to BehemothDocuments on the filesystem
+ * configured in Hadoop
+ **/
 public class CommonCrawlConverterJob extends Configured implements Tool {
 
-  public int run(String[] args) throws Exception {
+	/**
+	 * Contains the Amazon S3 bucket holding the CommonCrawl corpus.
+	 */
+	private static final String CC_BUCKET = "aws-publicdatasets";
 
-    if (args.length != 2) {
-      String syntax = "hadoop jar job.jar " + CommonCrawlConverterJob.class.getName() + " input output";
-      System.err.println(syntax);
-      return -1;
-    }
+	public int run(String[] args) throws Exception {
 
-    Path inputPath = new Path(args[0]);
-    Path output = new Path(args[1]);
+		if (args.length != 2) {
+			String syntax = "hadoop jar job.jar "
+					+ CommonCrawlConverterJob.class.getName()
+					+ " inputprefix output";
+			System.err.println(syntax);
+			return -1;
+		}
 
-    JobConf conf = new JobConf(getConf(), getClass());
-    conf.setJobName(getClass().getName());
-    conf.setJarByClass(CommonCrawlConverterJob.class);
+		String inputPrefixes = args[0];
 
-    // Input
-    //ARCInputFormat.setARCSourceClass(conf, ARCInputSource.class);
-    //Files are Gzipped
-    FileInputFormat.setInputPaths(conf, inputPath);
-    ARCInputFormat.setARCSourceClass(conf, JetS3tARCSource.class);
-    ARCInputFormat inputFormat = new ARCInputFormat();
-    inputFormat.configure(conf);
-    conf.setInputFormat(ARCInputFormat.class);
+		Path output = new Path(args[1]);
 
-    // Output
-    conf.setOutputFormat(SequenceFileOutputFormat.class);
-    conf.setOutputKeyClass(Text.class);
-    conf.setOutputValueClass(BehemothDocument.class);
-    FileOutputFormat.setOutputPath(conf, output);
-    // MapReduce
-    conf.setMapperClass(ArcToBehemothTransformer.class);
-    //conf.setMapperClass(NutchArcToBehemothTransformer.class);
-    conf.setNumReduceTasks(0); // map-only
+		// Creates a new job configuration for this Hadoop job.
+		JobConf conf = new JobConf(this.getConf());
 
-    JobClient.runJob(conf);
-    return 0;
-  }
+		// Configures this job with your Amazon AWS credentials
+		// conf.set(JetS3tARCSource.P_AWS_ACCESS_KEY_ID, awsCredentials);
+		// conf.set(JetS3tARCSource.P_AWS_SECRET_ACCESS_KEY, awsSecret);
+		conf.set(JetS3tARCSource.P_BUCKET_NAME, CC_BUCKET);
+		conf.set(JetS3tARCSource.P_INPUT_PREFIXES, inputPrefixes);
 
-  public static void main(String[] args) throws Exception {
-    ToolRunner.run(new CommonCrawlConverterJob(), args);
-  }
+		conf.setJobName(getClass().getName());
+		conf.setJarByClass(CommonCrawlConverterJob.class);
 
-}
+		// Configures where the input comes from when running our Hadoop job,
+		// in this case, gzipped ARC files from the specified Amazon S3 bucket
+		// paths.
+		ARCInputFormat.setARCSourceClass(conf, JetS3tARCSource.class);
+		ARCInputFormat inputFormat = new ARCInputFormat();
+		inputFormat.configure(conf);
+		conf.setInputFormat(ARCInputFormat.class);
 
-class NutchArcToBehemothTransformer extends MapReduceBase implements Mapper<Text, BytesWritable, Text, BehemothDocument> {
-  BehemothDocument doc = new BehemothDocument();
+		// Output
+		conf.setOutputFormat(SequenceFileOutputFormat.class);
+		conf.setOutputKeyClass(Text.class);
+		conf.setOutputValueClass(BehemothDocument.class);
+		FileOutputFormat.setOutputPath(conf, output);
+		conf.setMapperClass(ArcToBehemothTransformer.class);
+		conf.setNumReduceTasks(0); // map-only
 
+		JobClient.runJob(conf);
+		return 0;
+	}
 
-  public void map(Text key, BytesWritable value,
-                  OutputCollector<Text, BehemothDocument> collector, Reporter reporter)
-          throws IOException {
-    String[] headers = key.toString().split("\\s+");
-    String urlStr = headers[0];
-    //String version = headers[2];
-    String contentType = headers[3];
-    doc.setContent(value.get());
-    doc.setContentType(contentType);
-    doc.setUrl(urlStr);
-    collector.collect(key, doc);
-  }
-}
-
-class ArcToBehemothTransformer extends MapReduceBase implements Mapper<Text, ArcFileItem, Text, BehemothDocument> {
-
-  public void map(Text key, ArcFileItem doc,
-                  OutputCollector<Text, BehemothDocument> collector, Reporter reported)
-          throws IOException {
-    BehemothDocument newDoc = new BehemothDocument();
-    newDoc.setUrl(doc.getUri());
-    newDoc.setContent(doc.getContent().getReadOnlyBytes());
-    newDoc.setContentType(doc.getMimeType());
-    collector.collect(key, newDoc);
-  }
+	public static void main(String[] args) throws Exception {
+		ToolRunner.run(new CommonCrawlConverterJob(), args);
+	}
 
 }
 
+class ArcToBehemothTransformer extends MapReduceBase implements
+		Mapper<Text, ArcFileItem, Text, BehemothDocument> {
 
+	public void map(Text key, ArcFileItem doc,
+			OutputCollector<Text, BehemothDocument> collector, Reporter reported)
+			throws IOException {
+		BehemothDocument newDoc = new BehemothDocument();
+		newDoc.setUrl(doc.getUri());
+		newDoc.setContent(doc.getContent().getReadOnlyBytes());
+		newDoc.setContentType(doc.getMimeType());
+		collector.collect(key, newDoc);
+	}
+
+}

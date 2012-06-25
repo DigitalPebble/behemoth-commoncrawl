@@ -133,11 +133,12 @@
       <artifactId>guava</artifactId>
       <version>10.0.1</version>
     </dependency>
+    <!--
     <dependency>
       <groupId>net.java.dev.jets3t</groupId>
       <artifactId>jets3t</artifactId>
       <version>0.8.1</version>
-    </dependency>
+    </dependency> -->
     <dependency>
       <groupId>org.apache.thrift</groupId>
       <artifactId>libthrift</artifactId>
