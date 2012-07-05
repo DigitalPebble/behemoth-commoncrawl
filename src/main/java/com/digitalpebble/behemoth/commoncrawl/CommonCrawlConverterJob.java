@@ -116,8 +116,11 @@ class ArcToBehemothTransformer extends MapReduceBase implements
         newDoc.setUrl(doc.getUri());
         newDoc.setContent(doc.getContent().getReadOnlyBytes());
         newDoc.setContentType(doc.getMimeType());
-        if (filter.keep(newDoc))
+        if (filter.keep(newDoc)) {
             collector.collect(key, newDoc);
+            reported.incrCounter("COMMON CRAWL MIMETYPE", doc.getMimeType(), 1l);
+        } else
+            reported.incrCounter("COMMON CRAWL", "FILTERED", 1l);
     }
 
     @Override
