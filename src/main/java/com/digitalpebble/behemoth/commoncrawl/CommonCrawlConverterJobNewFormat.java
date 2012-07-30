@@ -19,6 +19,7 @@ import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
+import org.apache.hadoop.mapred.SequenceFileInputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.log4j.Logger;
@@ -62,11 +63,46 @@ public class CommonCrawlConverterJobNewFormat extends Configured implements
 
     }
 
-    public static class SampleFilter implements PathFilter {
+    public static class TextConversionMapper extends MapReduceBase implements
+            Mapper<Text, Text, Text, BehemothDocument> {
+
+        DocumentFilter filter;
+
+        public void map(Text key, Text doc,
+                OutputCollector<Text, BehemothDocument> collector,
+                Reporter reported) throws IOException {
+            BehemothDocument newDoc = new BehemothDocument();
+            newDoc.setUrl(key.toString());
+            newDoc.setText(doc.toString());
+            if (filter.keep(newDoc)) {
+                collector.collect(key, newDoc);
+            } else
+                reported.incrCounter("COMMON CRAWL", "FILTERED", 1l);
+        }
+
+        @Override
+        public void configure(JobConf job) {
+            super.configure(job);
+            filter = DocumentFilter.getFilters(job);
+        }
+
+    }
+
+    public static class ARCFilter implements PathFilter {
 
         public boolean accept(Path path) {
 
             if (!path.getName().endsWith(".arc.gz"))
+                return false;
+            return true;
+        }
+    }
+
+    public static class TextFilter implements PathFilter {
+
+        public boolean accept(Path path) {
+
+            if (!path.getName().startsWith("textData-"))
                 return false;
             return true;
         }
@@ -95,6 +131,11 @@ public class CommonCrawlConverterJobNewFormat extends Configured implements
         // "s3n://aws-publicdatasets/common-crawl/parse-output/segment/*/*.arc.gz";
         inputPath = args[0];
         outputPath = args[1];
+        boolean binary = true;
+        if (args.length > 2) {
+            if ("-text".equalsIgnoreCase(args[2]))
+                binary = false;
+        }
 
         // Creates a new job configuration for this Hadoop job.
         JobConf job = new JobConf(this.getConf());
@@ -104,8 +145,17 @@ public class CommonCrawlConverterJobNewFormat extends Configured implements
         // Scan the provided input path for ARC files.
         LOG.info("setting input path to '" + inputPath + "'");
         FileInputFormat.addInputPath(job, new Path(inputPath));
-        FileInputFormat.setInputPathFilter(job, SampleFilter.class);
 
+        if (binary) {
+            FileInputFormat.setInputPathFilter(job, ARCFilter.class);
+            job.setInputFormat(ArcInputFormat.class);      
+            job.setMapperClass(ConversionMapper.class);
+
+        } else {
+            FileInputFormat.setInputPathFilter(job, TextFilter.class);
+            job.setInputFormat(SequenceFileInputFormat.class);
+            job.setMapperClass(TextConversionMapper.class);
+        }
         // Delete the output path directory if it already exists.
         LOG.info("clearing the output path at '" + outputPath + "'");
 
@@ -118,9 +168,6 @@ public class CommonCrawlConverterJobNewFormat extends Configured implements
         LOG.info("setting output path to '" + outputPath + "'");
         FileOutputFormat.setOutputPath(job, new Path(outputPath));
 
-        // Set which InputFormat class to use.
-        job.setInputFormat(ArcInputFormat.class);
-
         // Set which OutputFormat class to use.
         job.setOutputFormat(SequenceFileOutputFormat.class);
 
@@ -128,7 +175,6 @@ public class CommonCrawlConverterJobNewFormat extends Configured implements
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(BehemothDocument.class);
 
-        job.setMapperClass(ConversionMapper.class);
         job.setNumReduceTasks(0); // map-only
 
         if (JobClient.runJob(job).isSuccessful())
