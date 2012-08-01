@@ -74,6 +74,8 @@ public class CommonCrawlConverterJobNewFormat extends Configured implements
             BehemothDocument newDoc = new BehemothDocument();
             newDoc.setUrl(key.toString());
             newDoc.setText(doc.toString());
+            // add the text as content 
+            newDoc.setContent(doc.getBytes());
             if (filter.keep(newDoc)) {
                 collector.collect(key, newDoc);
             } else
