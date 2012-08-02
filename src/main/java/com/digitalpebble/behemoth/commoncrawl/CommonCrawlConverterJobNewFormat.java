@@ -18,13 +18,13 @@ import org.apache.hadoop.mapred.MapReduceBase;
 import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reporter;
-import org.apache.hadoop.mapred.SequenceFileOutputFormat;
 import org.apache.hadoop.mapred.SequenceFileInputFormat;
+import org.apache.hadoop.mapred.SequenceFileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.log4j.Logger;
-import org.commoncrawl.hadoop.mapred.ArcInputFormat;
-import org.commoncrawl.hadoop.mapred.ArcRecord;
+import org.commoncrawl.hadoop.mapred.ArcInputFormatCC;
+import org.commoncrawl.hadoop.mapred.ArcRecordCC;
 
 import com.digitalpebble.behemoth.BehemothDocument;
 import com.digitalpebble.behemoth.DocumentFilter;
@@ -36,17 +36,18 @@ public class CommonCrawlConverterJobNewFormat extends Configured implements
             .getLogger(CommonCrawlConverterJobNewFormat.class);
 
     public static class ConversionMapper extends MapReduceBase implements
-            Mapper<Text, ArcRecord, Text, BehemothDocument> {
+            Mapper<Text, ArcRecordCC, Text, BehemothDocument> {
 
         DocumentFilter filter;
 
-        public void map(Text key, ArcRecord doc,
+        public void map(Text key, ArcRecordCC doc,
                 OutputCollector<Text, BehemothDocument> collector,
                 Reporter reported) throws IOException {
             BehemothDocument newDoc = new BehemothDocument();
             newDoc.setUrl(doc.getURL());
-            newDoc.setContent(doc.getContent());
+            newDoc.setContent(doc.getPayload());
             newDoc.setContentType(doc.getContentType());
+            // TODO set IP address, HTTP headers etc...
             if (filter.keep(newDoc)) {
                 collector.collect(key, newDoc);
                 reported.incrCounter("COMMON CRAWL MIMETYPE",
@@ -150,7 +151,7 @@ public class CommonCrawlConverterJobNewFormat extends Configured implements
 
         if (binary) {
             FileInputFormat.setInputPathFilter(job, ARCFilter.class);
-            job.setInputFormat(ArcInputFormat.class);      
+            job.setInputFormat(ArcInputFormatCC.class);      
             job.setMapperClass(ConversionMapper.class);
 
         } else {
