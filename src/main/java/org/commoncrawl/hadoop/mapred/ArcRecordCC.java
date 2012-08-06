@@ -23,15 +23,18 @@ import org.apache.log4j.Logger;
 
 // Apache HTTP Components classes
 import org.apache.http.Header;
+import org.apache.http.HeaderElement;
 import org.apache.http.HttpException;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
+import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.impl.DefaultHttpResponseFactory;
 import org.apache.http.impl.io.AbstractSessionInputBuffer;
 import org.apache.http.impl.io.DefaultHttpResponseParser;
 import org.apache.http.io.SessionInputBuffer;
 import org.apache.http.message.BasicHeader;
+import org.apache.http.message.BasicHeaderValueParser;
 import org.apache.http.message.BasicLineParser;
 import org.apache.http.params.BasicHttpParams;
 
@@ -62,12 +65,24 @@ public class ArcRecordCC implements Writable {
 
     private HttpResponse _httpResponse;
 
+    private int _httpContentStart;
+
     /**
      * <p>
      * Creates an empty ARC record.
      * </p>
      */
     public ArcRecordCC() {
+    }
+
+    private void _clear() {
+        this._url = null;
+        this._ipAddress = null;
+        this._archiveDate = null;
+        this._contentType = null;
+        this._contentLength = 0;
+        this._payload = null;
+        this._httpResponse = null;
     }
 
     private String _readLine(InputStream in) throws IOException, EOFException {
@@ -111,6 +126,9 @@ public class ArcRecordCC implements Writable {
             LOG.error("ArcRecord cannot be created from NULL/missing input stream.");
             return false;
         }
+
+        // Clear any current values assigned to the object.
+        this._clear();
 
         // Read the ARC header from the stream.
         String arcRecordHeader = this._readLine(in);
@@ -440,6 +458,53 @@ public class ArcRecordCC implements Writable {
 
     /**
      * <p>
+     * Helper function to search a byte array for CR-LF-CR-LF (the end of HTTP
+     * headers in the payload buffer).
+     * </p>
+     * 
+     * @return The offset of the end of HTTP headers, after the last CRLF.
+     */
+    private int _searchForCRLFCRLF(byte[] data) {
+
+        final byte CR = (byte) '\r';
+        final byte LF = (byte) '\n';
+
+        int i;
+        int s = 0;
+
+        for (i = 0; i < data.length; i++) {
+
+            if (data[i] == CR) {
+                if (s == 0)
+                    s = 1;
+                else if (s == 1)
+                    s = 0;
+                else if (s == 2)
+                    s = 3;
+                else if (s == 3)
+                    s = 0;
+            } else if (data[i] == LF) {
+                if (s == 0)
+                    s = 0;
+                else if (s == 1)
+                    s = 2;
+                else if (s == 2)
+                    s = 0;
+                else if (s == 3)
+                    s = 4;
+            } else {
+                s = 0;
+            }
+
+            if (s == 4)
+                return i + 1;
+        }
+
+        return -1;
+    }
+
+    /**
+     * <p>
      * Returns an HTTP response object parsed from the ARC record payload.
      * <p>
      * <p>
@@ -455,21 +520,50 @@ public class ArcRecordCC implements Writable {
         if (this._httpResponse != null)
             return this._httpResponse;
 
-        if (this._payload == null)
+        if (this._payload == null) {
+            LOG.error("Unable to parse HTTP response: Payload has not been set");
             return null;
+        }
 
         if (this._url != null && !this._url.startsWith("http://")
-                && !this._url.startsWith("https://"))
+                && !this._url.startsWith("https://")) {
+            LOG.error("Unable to parse HTTP response: URL protocol is not HTTP");
             return null;
+        }
 
         this._httpResponse = null;
 
+        // Find where the HTTP headers stop
+        int end = this._searchForCRLFCRLF(this._payload);
+
+        if (end == -1) {
+            LOG.error("Unable to parse HTTP response: End of HTTP headers not found");
+            return null;
+        }
+
+        // Parse the HTTP status line and headers
         DefaultHttpResponseParser parser = new DefaultHttpResponseParser(
-                new ByteArraySessionInputBuffer(this._payload),
+                new ByteArraySessionInputBuffer(this._payload, 0, end),
                 new BasicLineParser(), new DefaultHttpResponseFactory(),
                 new BasicHttpParams());
 
-        this._httpResponse = (HttpResponse) parser.parse();
+        this._httpResponse = parser.parse();
+
+        if (this._httpResponse == null) {
+            LOG.error("Unable to parse HTTP response");
+            return null;
+        }
+
+        // Set the reset of the payload as the HTTP entity. Use an
+        // InputStreamEntity
+        // to avoid a memory copy.
+        InputStreamEntity entity = new InputStreamEntity(
+                new ByteArrayInputStream(this._payload, end,
+                        this._payload.length - end), this._payload.length - end);
+        entity.setContentType(this._httpResponse.getFirstHeader("Content-Type"));
+        entity.setContentEncoding(this._httpResponse
+                .getFirstHeader("Content-Encoding"));
+        this._httpResponse.setEntity(entity);
 
         return this._httpResponse;
     }
