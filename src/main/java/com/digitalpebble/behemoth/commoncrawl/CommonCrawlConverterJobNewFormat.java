@@ -3,6 +3,8 @@ package com.digitalpebble.behemoth.commoncrawl;
 // Java classes
 import java.io.IOException;
 import java.net.URI;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
@@ -40,6 +42,9 @@ public class CommonCrawlConverterJobNewFormat extends Configured implements
 
         DocumentFilter filter;
 
+        // used to ensure that we don't get more than 120 Counters
+        Set<String> mimetypeset = new HashSet<String>();
+
         public void map(Text key, ArcRecordCC doc,
                 OutputCollector<Text, BehemothDocument> collector,
                 Reporter reported) throws IOException {
@@ -50,10 +55,9 @@ public class CommonCrawlConverterJobNewFormat extends Configured implements
             // TODO set IP address, HTTP headers etc...
             if (filter.keep(newDoc)) {
                 collector.collect(key, newDoc);
-                reported.incrCounter("COMMON CRAWL MIMETYPE",
-                        doc.getContentType(), 1l);
+                reported.incrCounter("COMMON CRAWL", "KEPT", 1L);
             } else
-                reported.incrCounter("COMMON CRAWL", "FILTERED", 1l);
+                reported.incrCounter("COMMON CRAWL", "FILTERED", 1L);
         }
 
         @Override
@@ -75,7 +79,7 @@ public class CommonCrawlConverterJobNewFormat extends Configured implements
             BehemothDocument newDoc = new BehemothDocument();
             newDoc.setUrl(key.toString());
             newDoc.setText(doc.toString());
-            // add the text as content 
+            // add the text as content
             newDoc.setContent(doc.getBytes());
             if (filter.keep(newDoc)) {
                 collector.collect(key, newDoc);
@@ -151,7 +155,7 @@ public class CommonCrawlConverterJobNewFormat extends Configured implements
 
         if (binary) {
             FileInputFormat.setInputPathFilter(job, ARCFilter.class);
-            job.setInputFormat(ArcInputFormatCC.class);      
+            job.setInputFormat(ArcInputFormatCC.class);
             job.setMapperClass(ConversionMapper.class);
 
         } else {
