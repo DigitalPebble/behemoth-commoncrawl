@@ -50,18 +50,27 @@ public class CommonCrawlConverterJobNewFormat extends Configured implements
                 Reporter reported) throws IOException {
             BehemothDocument newDoc = new BehemothDocument();
             newDoc.setUrl(doc.getURL());
-            int startContent = _searchForCRLFCRLF(doc.getPayload());
-            if (startContent==-1) {
-                startContent = 0;
-            }
-            
-            // could also do 
-            // doc.getHttpResponse().getEntity().getContent();
-            
-            byte[] content = new byte[doc.getPayload().length-startContent];
-            System.arraycopy(doc.getPayload(), startContent, content, 0, content.length);
 
-            newDoc.setContent(content);
+            if (doc.getPayload() != null) {
+                int startContent = _searchForCRLFCRLF(doc.getPayload());
+                if (startContent == -1) {
+                    startContent = 0;
+                }
+
+                // could also do
+                // doc.getHttpResponse().getEntity().getContent();
+
+                byte[] content = new byte[doc.getPayload().length
+                        - startContent];
+                System.arraycopy(doc.getPayload(), startContent, content, 0,
+                        content.length);
+
+                newDoc.setContent(content);
+            } else {
+                reported.incrCounter("COMMON CRAWL", "EMPTY CONTENT", 1L);
+                return;
+            }
+
             newDoc.setContentType(doc.getContentType());
             // TODO set IP address, HTTP headers etc...
             if (filter.keep(newDoc)) {
