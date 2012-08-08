@@ -50,7 +50,18 @@ public class CommonCrawlConverterJobNewFormat extends Configured implements
                 Reporter reported) throws IOException {
             BehemothDocument newDoc = new BehemothDocument();
             newDoc.setUrl(doc.getURL());
-            newDoc.setContent(doc.getPayload());
+            int startContent = _searchForCRLFCRLF(doc.getPayload());
+            if (startContent==-1) {
+                startContent = 0;
+            }
+            
+            // could also do 
+            // doc.getHttpResponse().getEntity().getContent();
+            
+            byte[] content = new byte[doc.getPayload().length-startContent];
+            System.arraycopy(doc.getPayload(), startContent, content, 0, content.length);
+
+            newDoc.setContent(content);
             newDoc.setContentType(doc.getContentType());
             // TODO set IP address, HTTP headers etc...
             if (filter.keep(newDoc)) {
@@ -64,6 +75,45 @@ public class CommonCrawlConverterJobNewFormat extends Configured implements
         public void configure(JobConf job) {
             super.configure(job);
             filter = DocumentFilter.getFilters(job);
+        }
+
+        private int _searchForCRLFCRLF(byte[] data) {
+
+            final byte CR = (byte) '\r';
+            final byte LF = (byte) '\n';
+
+            int i;
+            int s = 0;
+
+            for (i = 0; i < data.length; i++) {
+
+                if (data[i] == CR) {
+                    if (s == 0)
+                        s = 1;
+                    else if (s == 1)
+                        s = 0;
+                    else if (s == 2)
+                        s = 3;
+                    else if (s == 3)
+                        s = 0;
+                } else if (data[i] == LF) {
+                    if (s == 0)
+                        s = 0;
+                    else if (s == 1)
+                        s = 2;
+                    else if (s == 2)
+                        s = 0;
+                    else if (s == 3)
+                        s = 4;
+                } else {
+                    s = 0;
+                }
+
+                if (s == 4)
+                    return i + 1;
+            }
+
+            return -1;
         }
 
     }
