@@ -7,7 +7,7 @@
 	<packaging>jar</packaging>
 
 	<name>commoncrawl</name>
-	<url>https://github.com/jnioche/behemoth/</url>
+	<url>https://github.com/digitalpebble/behemoth-commoncrawl/</url>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -50,7 +50,7 @@
 		<dependency>
 			<groupId>com.digitalpebble.behemoth</groupId>
 			<artifactId>behemoth-core</artifactId>
-			<version>1.0-SNAPSHOT</version>
+			<version>1.0</version>
 		</dependency>
 
 		<dependency>
