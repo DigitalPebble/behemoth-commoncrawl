@@ -40,9 +40,6 @@ public class CommonCrawlConverterJob2012 extends Configured implements Tool {
 
         DocumentFilter filter;
 
-        // used to ensure that we don't get more than 120 Counters
-        Set<String> mimetypeset = new HashSet<String>();
-
         public void map(Text key, BytesWritable rawinput, Context context)
                 throws IOException, InterruptedException {
             BehemothDocument newDoc = new BehemothDocument();
@@ -54,16 +51,25 @@ public class CommonCrawlConverterJob2012 extends Configured implements Tool {
 
             String headersText = new String(rawinput.getBytes(), 0,
                     indexofHeaderTerminator, Charset.forName("UTF-8"));
+            
             byte[] content = Arrays.copyOfRange(rawinput.getBytes(),
                     indexofHeaderTerminator + 4, rawinput.getLength());
             newDoc.setContent(content);
 
             // get the content type from the HTTP HEADERS
             // store the other metadata as well
-
-            // TODO newDoc.setContentType(rawinput.getContentType());
-
-            // TODO set IP address, HTTP headers etc...
+            String[] lines = headersText.split("\r?\n");
+            for (String l : lines){
+                int i = l.indexOf(":");
+                if (i==-1) continue;
+                String keyMD = l.substring(0, i);
+                String valueMD = l.substring(i+1);
+                if (keyMD.equalsIgnoreCase("content-type")){
+                    newDoc.setContentType(valueMD);
+                }
+                // TODO set IP address, HTTP headers etc...
+            }
+            
             if (filter.keep(newDoc)) {
                 context.write(key, newDoc);
                 context.getCounter("COMMON CRAWL", "KEPT").increment(1l);

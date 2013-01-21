@@ -75,7 +75,7 @@
 		<dependency>
 			<groupId>org.commoncrawl</groupId>
 			<artifactId>commoncrawl</artifactId>
-			<version>0.1-nolibs</version>
+			<version>1.0</version>
 		</dependency>
 
 		<dependency>
