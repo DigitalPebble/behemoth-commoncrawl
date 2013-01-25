@@ -95,8 +95,6 @@ public class CommonCrawlConverterJob2012 extends Configured implements Tool {
             BehemothDocument newDoc = new BehemothDocument();
             newDoc.setUrl(key.toString());
             newDoc.setText(doc.toString());
-            // add the text as content
-            newDoc.setContent(doc.getBytes());
             if (filter.keep(newDoc)) {
                 context.write(key, newDoc);
             } else
