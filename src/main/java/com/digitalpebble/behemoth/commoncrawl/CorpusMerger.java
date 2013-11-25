@@ -94,6 +94,8 @@ public class CorpusMerger extends Configured implements Tool {
 				String newText = bd.getText();
 				byte[] newContent = bd.getContent();
 				MapWritable newMD = bd.getMetadata();
+				String newCT = bd.getContentType();
+				// annotations?
 
 				if (StringUtils.isNotBlank(newText)
 						&& StringUtils.isBlank(doc.getText())) {
@@ -106,6 +108,11 @@ public class CorpusMerger extends Configured implements Tool {
 				}
 				if (doc.getMetadata() == null && newMD != null) {
 					doc.setMetadata(newMD);
+					hasMerged = true;
+				}
+				if (StringUtils.isNotBlank(newCT)
+						&& StringUtils.isBlank(doc.getContentType())) {
+					doc.setContentType(newCT);
 					hasMerged = true;
 				}
 
