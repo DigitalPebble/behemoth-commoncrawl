@@ -47,7 +47,6 @@ import org.slf4j.LoggerFactory;
 
 import com.digitalpebble.behemoth.BehemothConfiguration;
 import com.digitalpebble.behemoth.BehemothDocument;
-import com.digitalpebble.behemoth.BehemothMapper;
 import com.digitalpebble.behemoth.DocumentFilter;
 
 /**
@@ -64,7 +63,7 @@ public class CorpusMerger extends Configured implements Tool {
 		System.exit(res);
 	}
 
-	public class MergerReducer implements
+	public static class MergerReducer implements
 			Reducer<Text, BehemothDocument, Text, BehemothDocument> {
 
 		private DocumentFilter docFilter;
@@ -189,9 +188,9 @@ public class CorpusMerger extends Configured implements Tool {
 		job.setOutputFormat(SequenceFileOutputFormat.class);
 
 		job.setOutputKeyClass(Text.class);
-
 		job.setOutputValueClass(BehemothDocument.class);
-		job.setMapperClass(BehemothMapper.class);
+		
+		//job.setMapperClass(IdentityMapper.class);
 
 		job.setReducerClass(MergerReducer.class);
 
