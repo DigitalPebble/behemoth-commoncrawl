@@ -68,9 +68,11 @@ public class CorpusMerger extends Configured implements Tool {
 			Reducer<Text, BehemothDocument, Text, BehemothDocument> {
 
 		private DocumentFilter docFilter;
+		private boolean keepOnlyMerged = true;
 
 		public void configure(JobConf conf) {
 			this.docFilter = DocumentFilter.getFilters(conf);
+			this.keepOnlyMerged = conf.getBoolean("keepOnlyMerged", true);
 		}
 
 		public void close() throws IOException {
@@ -81,6 +83,8 @@ public class CorpusMerger extends Configured implements Tool {
 				Reporter reporter) throws IOException {
 
 			BehemothDocument doc = null;
+
+			boolean hasHadMerge = false;
 
 			while (iter.hasNext()) {
 				BehemothDocument bd = iter.next();
@@ -116,10 +120,17 @@ public class CorpusMerger extends Configured implements Tool {
 					hasMerged = true;
 				}
 
-				if (hasMerged)
+				if (hasMerged) {
 					reporter.incrCounter("CorpusMerger", "merged", 1);
-				else
+					hasHadMerge = true;
+				} else
 					reporter.incrCounter("CorpusMerger", "not_merged", 1);
+			}
+			
+			if (keepOnlyMerged && !hasHadMerge) {
+				reporter.incrCounter("CorpusMerger",
+						"DOC SKIPPED AS UNMERGED", 1);
+				return;
 			}
 
 			if (doc != null) {
