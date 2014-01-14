@@ -12,6 +12,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.io.BytesWritable;
+import org.apache.hadoop.io.MapWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
@@ -54,6 +55,9 @@ public class CommonCrawlConverterJob2012 extends Configured implements Tool {
                     indexofHeaderTerminator + 4, rawinput.getLength());
             newDoc.setContent(content);
 
+            
+            MapWritable md = newDoc.getMetadata(true);
+            
             // get the content type from the HTTP HEADERS
             // store the other metadata as well
             String[] lines = headersText.split("\r?\n");
@@ -65,7 +69,9 @@ public class CommonCrawlConverterJob2012 extends Configured implements Tool {
                 if (keyMD.equalsIgnoreCase("content-type")){
                     newDoc.setContentType(valueMD);
                 }
-                // TODO set IP address, HTTP headers etc...
+                // keep the metadata from CC
+                // TODO use a prefix?
+                md.put(new Text(keyMD), new Text(valueMD));
             }
             
             if (filter.keep(newDoc)) {
