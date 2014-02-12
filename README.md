@@ -1,7 +1,8 @@
 behemoth-commoncrawl
 ====================
 
-CommonCrawl module for Behemoth. 
+CommonCrawl module for Behemoth. For the CC-2013 format, use the IO module instead [https://github.com/DigitalPebble/behemoth/tree/master/io].
+
 NOTE : YOU NEED TO HAVE AN AWS ACCOUNT AND SET AWS_ACCESS_KEY AND AWS_SECRET_ACCESS_KEY.
 
 INSTRUCTIONS
